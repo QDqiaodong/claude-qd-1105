@@ -41,6 +41,9 @@ CREATE TABLE supplier (
     name       VARCHAR(64) NOT NULL UNIQUE COMMENT '供应商名',
     contact    VARCHAR(32) COMMENT '联系人',
     phone      VARCHAR(20) COMMENT '手机',
+    status     VARCHAR(16) NOT NULL DEFAULT '启用' COMMENT '启用 / 停用（停用后不可新建采购草稿、挂该供应商的草稿不可入库）',
+    inactive_reason VARCHAR(255) NULL COMMENT '停用原因（启用时为空）',
+    status_changed_at DATETIME NULL COMMENT '最近一次启用/停用状态变更时间',
     created_at DATETIME    COMMENT '创建时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -87,11 +90,11 @@ ALTER TABLE sale_item ADD CONSTRAINT fk_si_book FOREIGN KEY (book_id) REFERENCES
 -- 种子数据（含缺货 / 下架 / 已作废 / 已退款 等异常态）
 -- =====================================================================
 
-INSERT INTO supplier (name, contact, phone, created_at) VALUES
-('北京图书大厦', '王经理', '13800001111', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY),
-('上海世纪文景', '李女士', '13900002222', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY),
-('浙江新华书店', '陈主任', '13700003333', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 55 DAY),
-('广东教育出版社', '赵老师', '13600004444', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 50 DAY);
+INSERT INTO supplier (name, contact, phone, status, inactive_reason, status_changed_at, created_at) VALUES
+('北京图书大厦', '王经理', '13800001111', '启用', NULL, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY),
+('上海世纪文景', '李女士', '13900002222', '启用', NULL, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY),
+('浙江新华书店', '陈主任', '13700003333', '启用', NULL, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 55 DAY, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 55 DAY),
+('广东教育出版社', '赵老师', '13600004444', '启用', NULL, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 50 DAY, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 50 DAY);
 
 INSERT INTO book (isbn, title, author, price, stock, status, created_at) VALUES
 ('9787020000011', '红楼梦',     '曹雪芹',   59.00, 120, '在售', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY),

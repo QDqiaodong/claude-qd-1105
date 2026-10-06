@@ -18,7 +18,12 @@ public final class Dict {
     public static final List<String> BOOK_STATUS = List.of("在售", "缺货", "下架");
 
     // ---------------- 供应商 ----------------
-    // 供应商无状态枚举，仅手机号格式约束
+    /** 启用 / 停用；停用后不得新建采购草稿、挂该供应商的草稿不得入库 */
+    public static final String SUPPLIER_ACTIVE = "启用";
+    public static final String SUPPLIER_INACTIVE = "停用";
+    public static final List<String> SUPPLIER_STATUS = List.of(SUPPLIER_ACTIVE, SUPPLIER_INACTIVE);
+    /** 停用原因最长 255 字 */
+    public static final int SUPPLIER_REASON_MAX = 255;
 
     // ---------------- 进货单 ----------------
     /** 草稿 → 已入库 / 已作废；已入库 → 已作废（回滚库存） */
@@ -74,5 +79,9 @@ public final class Dict {
 
     public static boolean isValidPhone(String phone) {
         return phone != null && !phone.isBlank() && PHONE_PATTERN.matcher(phone).matches();
+    }
+
+    public static boolean isSupplierActive(String status) {
+        return SUPPLIER_ACTIVE.equals(status);
     }
 }
