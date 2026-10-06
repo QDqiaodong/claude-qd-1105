@@ -29,9 +29,15 @@ export default {
   updateBook: (id, d) => call(http.put(`/books/${id}`, d)),
 
   // ---------------- 供应商（卡片网格） ----------------
-  listSuppliers: (keyword) => call(http.get('/suppliers', params(keyword ? { keyword } : {}))),
+  listSuppliers: (keyword, status) => call(http.get('/suppliers', params({
+    ...(keyword ? { keyword } : {}),
+    ...(status ? { status } : {})
+  }))),
   createSupplier: (d) => call(http.post('/suppliers', d)),
   updateSupplier: (id, d) => call(http.put(`/suppliers/${id}`, d)),
+  changeSupplierStatus: (id, status, reason) =>
+    call(http.post(`/suppliers/${id}/status`, { status, reason })),
+  supplierStatusLogs: (id) => call(http.get(`/suppliers/${id}/status-logs`)),
 
   // ---------------- 进货单 ----------------
   listPurchases: (status) => call(http.get('/purchases', params(status ? { status } : {}))),

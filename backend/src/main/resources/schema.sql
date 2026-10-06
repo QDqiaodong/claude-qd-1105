@@ -19,6 +19,7 @@ DROP TABLE IF EXISTS sale_item;
 DROP TABLE IF EXISTS purchase_item;
 DROP TABLE IF EXISTS sale;
 DROP TABLE IF EXISTS purchase;
+DROP TABLE IF EXISTS supplier_status_log;
 DROP TABLE IF EXISTS book;
 DROP TABLE IF EXISTS supplier;
 SET FOREIGN_KEY_CHECKS = 1;
@@ -36,12 +37,28 @@ CREATE TABLE book (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------- 供应商 ----------------
+-- status 启用/停用（可追踪）：disabled_reason 停用原因，status_changed_at 最近一次状态变更时间
+-- 旧供应商记录在迁移脚本中默认回填为「启用」，status_changed_at 取 created_at。
 CREATE TABLE supplier (
     id         BIGINT AUTO_INCREMENT PRIMARY KEY,
     name       VARCHAR(64) NOT NULL UNIQUE COMMENT '供应商名',
     contact    VARCHAR(32) COMMENT '联系人',
     phone      VARCHAR(20) COMMENT '手机',
+    status     VARCHAR(16) NOT NULL DEFAULT '启用' COMMENT '启用 / 停用',
+    disabled_reason VARCHAR(255) COMMENT '停用原因（启用时为空）',
+    status_changed_at DATETIME COMMENT '最近状态变更时间',
     created_at DATETIME    COMMENT '创建时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------- 供应商状态变更流水 ----------------
+-- 每次停用 / 重新启用都留痕，保证状态可追踪、可追溯。
+CREATE TABLE supplier_status_log (
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    supplier_id BIGINT NOT NULL COMMENT '供应商 id',
+    from_status VARCHAR(16) COMMENT '变更前状态（初始回填为 NULL）',
+    to_status   VARCHAR(16) NOT NULL COMMENT '变更后状态：启用 / 停用',
+    reason      VARCHAR(255) COMMENT '停用原因 / 启用备注',
+    changed_at  DATETIME    NOT NULL COMMENT '变更时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------- 进货单 ----------------
@@ -82,16 +99,22 @@ ALTER TABLE purchase_item ADD CONSTRAINT fk_pi_purchase FOREIGN KEY (purchase_id
 ALTER TABLE purchase_item ADD CONSTRAINT fk_pi_book FOREIGN KEY (book_id) REFERENCES book (id);
 ALTER TABLE sale_item ADD CONSTRAINT fk_si_sale FOREIGN KEY (sale_id) REFERENCES sale (id);
 ALTER TABLE sale_item ADD CONSTRAINT fk_si_book FOREIGN KEY (book_id) REFERENCES book (id);
+ALTER TABLE supplier_status_log ADD CONSTRAINT fk_ssl_supplier FOREIGN KEY (supplier_id) REFERENCES supplier (id);
 
 -- =====================================================================
 -- 种子数据（含缺货 / 下架 / 已作废 / 已退款 等异常态）
 -- =====================================================================
 
-INSERT INTO supplier (name, contact, phone, created_at) VALUES
-('北京图书大厦', '王经理', '13800001111', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY),
-('上海世纪文景', '李女士', '13900002222', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY),
-('浙江新华书店', '陈主任', '13700003333', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 55 DAY),
-('广东教育出版社', '赵老师', '13600004444', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 50 DAY);
+INSERT INTO supplier (name, contact, phone, status, disabled_reason, status_changed_at, created_at) VALUES
+('北京图书大厦', '王经理', '13800001111', '启用', NULL, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY),
+('上海世纪文景', '李女士', '13900002222', '启用', NULL, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY),
+('浙江新华书店', '陈主任', '13700003333', '启用', NULL, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 55 DAY, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 55 DAY),
+('广东教育出版社', '赵老师', '13600004444', '停用', '合同到期，暂停采购', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 3 DAY, UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 50 DAY);
+
+-- 供应商状态流水：广东教育出版社经历 启用→停用（最近一次），历史留痕
+INSERT INTO supplier_status_log (supplier_id, from_status, to_status, reason, changed_at) VALUES
+(4, NULL,   '启用', '建档默认启用', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 50 DAY),
+(4, '启用', '停用', '合同到期，暂停采购', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 3 DAY);
 
 INSERT INTO book (isbn, title, author, price, stock, status, created_at) VALUES
 ('9787020000011', '红楼梦',     '曹雪芹',   59.00, 120, '在售', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 60 DAY),
@@ -103,11 +126,11 @@ INSERT INTO book (isbn, title, author, price, stock, status, created_at) VALUES
 ('9787020000073', '活着',       '余华',     35.00,  60, '在售', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 40 DAY),
 ('9787020000080', '小王子',     '圣埃克苏佩里', 29.90, 5, '在售', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 35 DAY);
 
--- 进货单：p1、p2 已入库；p3 草稿；p4 已作废（异常态）
+-- 进货单：p1、p2 已入库；p3 草稿（挂在已停用供应商 4 名下：关系保留、可补明细，但入库会被整单拒绝）；p4 已作废（异常态）
 INSERT INTO purchase (supplier_id, total, status, created_at) VALUES
 (1, 1180.00, '已入库', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 30 DAY),
 (2,  995.00, '已入库', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 28 DAY),
-(3,  300.00, '草稿',   UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 5 DAY),
+(4,  300.00, '草稿',   UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 5 DAY),
 (1,  240.00, '已作废', UTC_TIMESTAMP() + INTERVAL 8 HOUR - INTERVAL 20 DAY);
 
 INSERT INTO purchase_item (purchase_id, book_id, qty, cost) VALUES

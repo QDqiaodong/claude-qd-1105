@@ -18,7 +18,10 @@ public final class Dict {
     public static final List<String> BOOK_STATUS = List.of("在售", "缺货", "下架");
 
     // ---------------- 供应商 ----------------
-    // 供应商无状态枚举，仅手机号格式约束
+    /** 启用 / 停用：停用后不得新建挂接它的采购草稿，已挂接的草稿保留关系但不能入库 */
+    public static final String SUPPLIER_ENABLED = "启用";
+    public static final String SUPPLIER_DISABLED = "停用";
+    public static final List<String> SUPPLIER_STATUS = List.of(SUPPLIER_ENABLED, SUPPLIER_DISABLED);
 
     // ---------------- 进货单 ----------------
     /** 草稿 → 已入库 / 已作废；已入库 → 已作废（回滚库存） */
@@ -40,6 +43,14 @@ public final class Dict {
 
     public static boolean isValidBookStatus(String status) {
         return status != null && BOOK_STATUS.contains(status);
+    }
+
+    public static boolean isValidSupplierStatus(String status) {
+        return status != null && SUPPLIER_STATUS.contains(status);
+    }
+
+    public static boolean isSupplierEnabled(String status) {
+        return SUPPLIER_ENABLED.equals(status);
     }
 
     public static boolean isValidPurchaseStatus(String status) {
